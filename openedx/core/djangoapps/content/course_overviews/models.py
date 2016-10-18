@@ -357,8 +357,23 @@ class CourseOverview(TimeStampedModel):
         """
         Returns True if the course starts with-in given number of days otherwise returns False.
         """
-
         return course_metadata_utils.course_starts_within(self.start, days)
+
+    def retrieve_starttime(self):
+        """
+        Returns the desired datetime object corresponding to the course start date
+        """
+        # pylint: disable=no-member
+        return self.start
+        # pylint: enable=no-member
+
+    def retrieve_endtime(self):
+        """
+        Returns the desired datetime object corresponding to the course's ending date
+        """
+        # pylint: disable=no-member
+        return self.end
+        # pylint: enable=no-member
 
     def start_datetime_text(self, format_string="SHORT_DATE", time_zone=utc):
         """
@@ -389,6 +404,7 @@ class CourseOverview(TimeStampedModel):
     def end_datetime_text(self, format_string="SHORT_DATE", time_zone=utc):
         """
         Returns the end date or datetime for the course formatted as a string.
+
         """
         return course_metadata_utils.course_end_datetime_text(
             self.end,
