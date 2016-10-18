@@ -11,7 +11,9 @@ from lms.djangoapps.grades.config.models import PersistentGradesEnabledFlag
 from openedx.core.djangoapps.signals.signals import GRADES_UPDATED
 from xmodule import block_metadata_utils
 
+from ..models import PersistentCourseGrade
 from .subsection_grade import SubsectionGradeFactory
+from ..transformer import GradesTransformer
 
 
 log = getLogger(__name__)
@@ -24,8 +26,36 @@ class CourseGrade(object):
     def __init__(self, student, course, course_structure):
         self.student = student
         self.course = course
+        self.course_version = getattr(course, 'course_version', None)
+        self.course_edited_timestamp = getattr(course, 'subtree_edited_on', None)
         self.course_structure = course_structure
         self.chapter_grades = []
+        self._percent = None
+        self._letter_grade = None
+
+    @classmethod
+    def init_from_model(cls, user, course, course_structure, current_grading_policy_hash):
+        """
+        Initializes a CourseGrade object, filling its members with persisted values from the database.
+
+        If no persisted values are found, returns None.
+        """
+        try:
+            persistent_grade = PersistentCourseGrade.read_course_grade(user.id, course.id)
+        except PersistentCourseGrade.DoesNotExist:
+            return None
+        course_grade = CourseGrade(user, course, course_structure)
+
+        if current_grading_policy_hash != persistent_grade.grading_policy_hash:
+            course_grade.compute_and_update(read_only=False)
+        else:
+            course_grade.percent = persistent_grade.percent_grade
+            course_grade.letter_grade = persistent_grade.letter_grade
+            course_grade.course_version = persistent_grade.course_version
+            course_grade.course_edited_timestamp = persistent_grade.course_edited_timestamp
+
+        course_grade._log_event(log.info, u"init_from_model")  # pylint: disable=protected-access
+        return course_grade
 
     @lazy
     def subsection_grade_totals_by_format(self):
@@ -83,14 +113,32 @@ class CourseGrade(object):
         """
         Returns a rounded percent from the overall grade.
         """
+        if self._percent is not None:
+            return self._percent
         return self._calc_percent(self.grade_value)
+
+    @percent.setter
+    def percent(self, value):
+        """
+        Sets the previously calculated percent value for this grade.
+        """
+        self._percent = value
 
     @property
     def letter_grade(self):
         """
         Returns a letter representing the grade.
         """
+        if self._letter_grade is not None:
+            return self._letter_grade
         return self._compute_letter_grade(self.percent)
+
+    @letter_grade.setter
+    def letter_grade(self, value):
+        """
+        Sets a previously calculated letter grade.
+        """
+        self._letter_grade = value
 
     @property
     def passed(self):
@@ -112,6 +160,9 @@ class CourseGrade(object):
         # doesn't get displayed differently than it gets grades
         grade_summary['percent'] = self.percent
         grade_summary['grade'] = self.letter_grade
+
+        # These two fields are stored separately from percent and grade. The should match unless accessed in between
+        # course and subsection grade updates.
         grade_summary['totaled_scores'] = self.subsection_grade_totals_by_format
         grade_summary['raw_scores'] = list(self.locations_to_scores.itervalues())
 
@@ -147,6 +198,20 @@ class CourseGrade(object):
         blocks_total = len(self.locations_to_scores)
         if not read_only:
             subsection_grade_factory.bulk_create_unsaved()
+            grading_policy_hash = self.course_structure.get_transformer_block_field(
+                self.course.location,
+                GradesTransformer,
+                'grading_policy_hash',
+            )
+            PersistentCourseGrade.update_or_create_course_grade(
+                user_id=self.student.id,
+                course_id=self.course.id,
+                course_version=self.course_version,
+                course_edited_timestamp=self.course_edited_timestamp,
+                grading_policy_hash=grading_policy_hash,
+                percent_grade=self.percent,
+                letter_grade=self.letter_grade or "",
+            )
 
         self._signal_listeners_when_grade_computed()
         self._log_event(
@@ -281,13 +346,18 @@ class CourseGradeFactory(object):
         """
         Returns the saved grade for the given course and student.
         """
-        if PersistentGradesEnabledFlag.feature_enabled(course.id):
-            # TODO LATER Retrieve the saved grade for the course, if it exists.
-            _pretend_to_save_course_grades()
+        if not PersistentGradesEnabledFlag.feature_enabled(course.id):
+            return None
 
-
-def _pretend_to_save_course_grades():
-    """
-    Stub to facilitate testing feature flag until robust grade work lands.
-    """
-    pass
+        current_grading_policy_hash = course_structure.get_transformer_block_field(
+            course.location,
+            GradesTransformer,
+            'grading_policy_hash'
+        )
+        saved_course_grade = CourseGrade.init_from_model(
+            self.student,
+            course,
+            course_structure,
+            current_grading_policy_hash
+        )
+        return saved_course_grade
