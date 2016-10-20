@@ -4,6 +4,7 @@ CourseGrade Class
 
 from collections import defaultdict
 from django.conf import settings
+from django.core.exceptions import PermissionDenied
 from lazy import lazy
 from logging import getLogger
 from lms.djangoapps.course_blocks.api import get_course_blocks
@@ -29,12 +30,12 @@ class CourseGrade(object):
         self.course_version = getattr(course, 'course_version', None)
         self.course_edited_timestamp = getattr(course, 'subtree_edited_on', None)
         self.course_structure = course_structure
-        self.chapter_grades = []
         self._percent = None
         self._letter_grade = None
+        self.subsection_grade_factory = SubsectionGradeFactory(self.student, self.course, self.course_structure)
 
     @classmethod
-    def load_persisted_grade(cls, user, course, course_structure, current_grading_policy_hash):
+    def load_persisted_grade(cls, user, course, course_structure):
         """
         Initializes a CourseGrade object, filling its members with persisted values from the database.
 
@@ -48,16 +49,16 @@ class CourseGrade(object):
             return None
         course_grade = CourseGrade(user, course, course_structure)
 
+        current_grading_policy_hash = course_grade.get_grading_policy_hash(course.location, course_structure)
         if current_grading_policy_hash != persistent_grade.grading_policy_hash:
             course_grade.compute_and_update(read_only=False)
         else:
-            course_grade.percent = persistent_grade.percent_grade
-            course_grade.letter_grade = persistent_grade.letter_grade
+            course_grade._percent = persistent_grade.percent_grade  # pylint: disable=protected-access
+            course_grade._letter_grade = persistent_grade.letter_grade  # pylint: disable=protected-access
             course_grade.course_version = persistent_grade.course_version
             course_grade.course_edited_timestamp = persistent_grade.course_edited_timestamp
 
-        course_grade._populate_course_structure_grades()
-        course_grade._log_event(log.info, u"init_from_model")  # pylint: disable=protected-access
+        course_grade._log_event(log.info, u"load_persisted_grade")  # pylint: disable=protected-access
 
         return course_grade
 
@@ -81,8 +82,6 @@ class CourseGrade(object):
         """
         Returns a dict of problem scores keyed by their locations.
         """
-        if not self.chapter_grades:
-            self._populate_course_structure_grades()
         locations_to_scores = {}
         for chapter in self.chapter_grades:
             for subsection_grade in chapter['sections']:
@@ -106,45 +105,46 @@ class CourseGrade(object):
         self._log_event(log.warning, u"grade_value, percent: {0}, grade: {1}".format(percent, letter_grade))
         return grade_value
 
-    @property
-    def has_access_to_course(self):
+    @lazy
+    def chapter_grades(self):
         """
-        Returns whether the course structure as seen by the
-        given student is non-empty.
+        Returns a list of chapters, each containing its subsection grades,
+        display name, and url name.
         """
-        return len(self.course_structure) > 0
+        chapter_grades = []
+        for chapter_key in self.course_structure.get_children(self.course.location):
+            chapter = self.course_structure[chapter_key]
+            chapter_subsection_grades = []
+            children = self.course_structure.get_children(chapter_key)
+            for subsection_key in children:
+                chapter_subsection_grades.append(
+                    self.subsection_grade_factory.create(self.course_structure[subsection_key], read_only=True)
+                )
 
-    @property
+            chapter_grades.append({
+                'display_name': block_metadata_utils.display_name_with_default_escaped(chapter),
+                'url_name': block_metadata_utils.url_name_for_block(chapter),
+                'sections': chapter_subsection_grades
+            })
+        return chapter_grades
+
+    @lazy
     def percent(self):
         """
         Returns a rounded percent from the overall grade.
         """
-        if self._percent is not None:
-            return self._percent
-        return self._calc_percent(self.grade_value)
+        if self._percent is None:
+            self._percent = self._calc_percent(self.grade_value)
+        return self._percent
 
-    @percent.setter
-    def percent(self, value):
-        """
-        Sets the previously calculated percent value for this grade.
-        """
-        self._percent = value
-
-    @property
+    @lazy
     def letter_grade(self):
         """
         Returns a letter representing the grade.
         """
-        if self._letter_grade is not None:
-            return self._letter_grade
-        return self._compute_letter_grade(self.percent)
-
-    @letter_grade.setter
-    def letter_grade(self, value):
-        """
-        Sets a previously calculated letter grade.
-        """
-        self._letter_grade = value
+        if self._letter_grade is None:
+            self._letter_grade = self._compute_letter_grade(self.percent)
+        return self._letter_grade
 
     @property
     def passed(self):
@@ -181,35 +181,15 @@ class CourseGrade(object):
 
         If read_only is True, doesn't save any updates to the grades.
         """
-        subsection_grade_factory = SubsectionGradeFactory(self.student, self.course, self.course_structure)
-        subsections_total = 0
-        for chapter_key in self.course_structure.get_children(self.course.location):
-            chapter = self.course_structure[chapter_key]
-            chapter_subsection_grades = []
-            children = self.course_structure.get_children(chapter_key)
-            subsections_total += len(children)
-            for subsection_key in children:
-                chapter_subsection_grades.append(
-                    subsection_grade_factory.create(self.course_structure[subsection_key], read_only=True)
-                )
-
-            self.chapter_grades.append({
-                'display_name': block_metadata_utils.display_name_with_default_escaped(chapter),
-                'url_name': block_metadata_utils.url_name_for_block(chapter),
-                'sections': chapter_subsection_grades
-            })
+        subsections_total = sum([len(chapter['sections']) for chapter in self.chapter_grades])
 
         total_graded_subsections = sum(len(x) for x in self.subsection_grade_totals_by_format.itervalues())
-        subsections_created = len(subsection_grade_factory._unsaved_subsection_grades)  # pylint: disable=protected-access
+        subsections_created = len(self.subsection_grade_factory._unsaved_subsection_grades)  # pylint: disable=protected-access
         subsections_read = subsections_total - subsections_created
         blocks_total = len(self.locations_to_scores)
         if not read_only:
-            subsection_grade_factory.bulk_create_unsaved()
-            grading_policy_hash = self.course_structure.get_transformer_block_field(
-                self.course.location,
-                GradesTransformer,
-                'grading_policy_hash',
-            )
+            self.subsection_grade_factory.bulk_create_unsaved()
+            grading_policy_hash = self.get_grading_policy_hash(self.course.location, self.course_structure)
             PersistentCourseGrade.update_or_create_course_grade(
                 user_id=self.student.id,
                 course_id=self.course.id,
@@ -254,6 +234,18 @@ class CourseGrade(object):
             earned += child_earned
             possible += child_possible
         return earned, possible
+
+    @staticmethod
+    def get_grading_policy_hash(course_location, course_structure):
+        """
+        Gets the grading policy of the course at the given location
+        in the given course structure.
+        """
+        return course_structure.get_transformer_block_field(
+            course_location,
+            GradesTransformer,
+            'grading_policy_hash'
+        )
 
     @staticmethod
     def _calc_percent(grade_value):
@@ -312,28 +304,6 @@ class CourseGrade(object):
             self.student.id
         ))
 
-    def _populate_course_structure_grades(self):
-        """
-        A course grade provides access to its chapter and subsection grades.
-        These are not persisted so we load them here.
-        TODO: determine if we should persist these values
-        """
-        if not self.chapter_grades:
-            subsection_grade_factory = SubsectionGradeFactory(self.student, self.course, self.course_structure)
-            for chapter_key in self.course_structure.get_children(self.course.location):
-                chapter = self.course_structure[chapter_key]
-                chapter_subsection_grades = []
-                children = self.course_structure.get_children(chapter_key)
-                for subsection_key in children:
-                    chapter_subsection_grades.append(
-                        subsection_grade_factory.create(self.course_structure[subsection_key], read_only=True)
-                    )
-                self.chapter_grades.append({
-                    'display_name': block_metadata_utils.display_name_with_default_escaped(chapter),
-                    'url_name': block_metadata_utils.url_name_for_block(chapter),
-                    'sections': chapter_subsection_grades
-                })
-
 
 class CourseGradeFactory(object):
     """
@@ -347,8 +317,12 @@ class CourseGradeFactory(object):
         Returns the CourseGrade object for the given student and course.
 
         If read_only is True, doesn't save any updates to the grades.
+        Raises a PermissionDenied if the user does not have course access.
         """
         course_structure = get_course_blocks(self.student, course.location)
+        # if user does not have access to this course, throw an exception
+        if not self._user_has_access_to_course(course_structure):
+            raise PermissionDenied("User does not have access to this course")
         return (
             self._get_saved_grade(course, course_structure) or
             self._compute_and_update_grade(course, course_structure, read_only)
@@ -378,15 +352,17 @@ class CourseGradeFactory(object):
         if not PersistentGradesEnabledFlag.feature_enabled(course.id):
             return None
 
-        current_grading_policy_hash = course_structure.get_transformer_block_field(
-            course.location,
-            GradesTransformer,
-            'grading_policy_hash'
-        )
         saved_course_grade = CourseGrade.load_persisted_grade(
             self.student,
             course,
-            course_structure,
-            current_grading_policy_hash
+            course_structure
         )
         return saved_course_grade
+
+    def _user_has_access_to_course(self, course_structure):
+        """
+        Given a course structure, returns whether the user
+        for whom that course structure was retrieved
+        has access to the course.
+        """
+        return len(course_structure) > 0

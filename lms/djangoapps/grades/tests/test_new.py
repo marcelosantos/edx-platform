@@ -571,11 +571,11 @@ class TestCourseGradeLogging(SharedModuleStoreTestCase, ProblemSubmissionTestMix
                     grade_factory,
                     log_mock.warning,
                     log_statement
-                    )
+                )
                 log_mock.reset_mock()
 
                 # the course grade has been created, so we expect to read it from the db
-                log_statement = u"init_from_model"
+                log_statement = u"load_persisted_grade"
                 self._create_course_grade_and_check_logging(
                     grade_factory,
                     log_mock.info,
