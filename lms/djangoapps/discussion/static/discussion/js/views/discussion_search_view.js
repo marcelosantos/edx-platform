@@ -25,7 +25,6 @@
 
                 this.template = HtmlUtils.template(searchTemplate);
                 this.threadListView = options.threadListView;
-
                 this.listenTo(this.model, 'change', this.render);
                 this.render();
             },

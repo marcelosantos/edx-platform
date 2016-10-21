@@ -8,9 +8,12 @@
             'discussion/js/discussion_router',
             'discussion/js/views/discussion_fake_breadcrumbs',
             'discussion/js/views/discussion_search_view',
+            'common/js/discussion/views/discussion_thread_list_view',
+            'discussion/js/views/discussion_board_view',
             'common/js/discussion/views/new_post_view'
         ],
-        function($, Backbone, DiscussionRouter, DiscussionFakeBreadcrumbs, DiscussionSearchView, NewPostView) {
+        function($, Backbone, DiscussionRouter, DiscussionFakeBreadcrumbs, DiscussionSearchView,
+                 DiscussionThreadListView, DiscussionBoardView, NewPostView) {
             return function(options) {
                 var userInfo = options.user_info,
                     sortPreference = options.sort_preference,
@@ -24,6 +27,8 @@
                     router,
                     breadcrumbs,
                     BreadcrumbsModel,
+                    discussionThreadListView,
+                    discussionBoardView,
                     searchBox,
                     routerEvents;
 
@@ -54,12 +59,26 @@
                     courseSettings: courseSettings,
                     newPostView: newPostView
                 });
-                router.start();
+
+                discussionBoardView = new DiscussionBoardView({
+                    collection: discussion,
+                    el: $('.discussion-body'),
+                    courseSettings: courseSettings
+                }).render();
+
+                discussionThreadListView = new DiscussionThreadListView({
+                    collection: discussion,
+                    el: $('.discussion-thread-list-container'),
+                    courseSettings: courseSettings
+                }).render();
+                router.discussionThreadListView = discussionThreadListView;
+                router.discussionBoardView = discussionBoardView;
 
                 // Initialize and render search box
                 searchBox = new DiscussionSearchView({
                     el: $('.forum-search'),
-                    threadListView: router.nav
+                    threadListView: router.discussionThreadListView,
+                    discussionBoardView: router.discussionBoardView
                 }).render();
 
                 // Initialize and render breadcrumbs
@@ -78,10 +97,14 @@
                             searchBox.clearSearch();
                             this.model.set('contents', []);
                             router.navigate('', {trigger: true});
-                            router.nav.toggleBrowseMenu(event);
+                            router.discussionBoardView.toggleBrowseMenu(event);
                         }
                     }
                 }).render();
+
+
+                // Start the router
+                router.start();
 
                 routerEvents = {
                     // Add new breadcrumbs and clear search box when the user selects topics
@@ -94,12 +117,13 @@
                     },
                     // Add 'Search Results' to breadcrumbs when user searches
                     'search:initiated': function() {
+                        router.discussionBoardView.hideBrowseMenu();
                         breadcrumbs.model.set('contents', ['Search Results']);
                     }
                 };
 
                 Object.keys(routerEvents).forEach(function(key) {
-                    router.nav.on(key, routerEvents[key]);
+                    router.discussionBoardView.on(key, routerEvents[key]);
                 });
             };
         });

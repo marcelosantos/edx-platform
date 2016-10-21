@@ -23,12 +23,8 @@
                     this.discussion = options.discussion;
                     this.course_settings = options.courseSettings;
                     this.newPostView = options.newPostView;
-                    this.nav = new DiscussionThreadListView({
-                        collection: this.discussion,
-                        el: $('.forum-nav'),
-                        courseSettings: this.course_settings
-                    });
-                    this.nav.render();
+                    this.discussionBoardView = options.discussionBoardView;
+                    this.discussionThreadListView = options.discussionThreadListView;
                 },
 
                 start: function() {
@@ -41,10 +37,10 @@
                     });
 
                     // Automatically navigate when the user selects threads
-                    this.nav.on('thread:selected', _.bind(this.navigateToThread, this));
-                    this.nav.on('thread:removed', _.bind(this.navigateToAllThreads, this));
-                    this.nav.on('threads:rendered', _.bind(this.setActiveThread, this));
-                    this.nav.on('thread:created', _.bind(this.navigateToThread, this));
+                    this.discussionThreadListView.on('thread:selected', _.bind(this.navigateToThread, this));
+                    this.discussionThreadListView.on('thread:removed', _.bind(this.navigateToAllThreads, this));
+                    this.discussionThreadListView.on('threads:rendered', _.bind(this.setActiveThread, this));
+                    this.discussionThreadListView.on('thread:created', _.bind(this.navigateToThread, this));
 
                     Backbone.history.start({
                         pushState: true,
@@ -57,15 +53,15 @@
                 },
 
                 allThreads: function() {
-                    this.nav.updateSidebar();
-                    return this.nav.goHome();
+                    this.discussionBoardView.updateSidebar();
+                    return this.discussionBoardView.goHome();
                 },
 
                 setActiveThread: function() {
                     if (this.thread) {
-                        return this.nav.setActiveThread(this.thread.get('id'));
+                        return this.discussionThreadListView.setActiveThread(this.thread.get('id'));
                     } else {
-                        return this.nav.goHome;
+                        return this.discussionBoardView.goHome;
                     }
                 },
 
@@ -97,7 +93,7 @@
                     });
                     this.main.render();
                     this.main.on('thread:responses:rendered', function() {
-                        return self.nav.updateSidebar();
+                        return self.discussionBoardView.updateSidebar();
                     });
                     return this.thread.on('thread:thread_type_updated', this.showMain);
                 },
