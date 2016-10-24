@@ -93,7 +93,8 @@ def get_user_email_language(user):
     return UserPreference.get_value(user, LANGUAGE_KEY)
 
 
-def enroll_email(course_id, student_email, auto_enroll=False, email_students=False, email_params=None, language=None):
+def enroll_email(course_id, student_email, auto_enroll=False, email_students=False, email_params=None,
+                 language=None, course_mode=None):
     """
     Enroll a student by email.
 
@@ -104,6 +105,7 @@ def enroll_email(course_id, student_email, auto_enroll=False, email_students=Fal
     `email_students` determines if student should be notified of action by email.
     `email_params` parameters used while parsing email templates (a `dict`).
     `language` is the language used to render the email.
+    `course_mode` is the course mode in which user will be enrolled.
 
     returns two EmailEnrollmentState's
         representing state before and after the action.
@@ -118,10 +120,8 @@ def enroll_email(course_id, student_email, auto_enroll=False, email_students=Fal
         # "honor" course_mode. Given the change to use "audit" as the default
         # course_mode in Open edX, we need to be backwards compatible with
         # how White Labels approach enrollment modes.
-        if CourseMode.is_white_label(course_id):
+        if course_mode is None and CourseMode.is_white_label(course_id):
             course_mode = CourseMode.DEFAULT_SHOPPINGCART_MODE_SLUG
-        else:
-            course_mode = None
 
         if previous_state.enrollment:
             course_mode = previous_state.mode

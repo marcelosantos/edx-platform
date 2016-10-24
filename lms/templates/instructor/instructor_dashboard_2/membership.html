@@ -50,6 +50,23 @@ from openedx.core.djangoapps.course_groups.partition_scheme import get_cohorted_
         </label>
     %endif
     <div class="enroll-option">
+        <label for="course-modes-list-selector" class="has-hint">${_("Select a course mode: ")}
+            <div class="hint auto-enroll-hint">
+                <span class="hint-caret"></span>
+                <p id="auto-enroll-tip">
+                    ${_("The users will be automatically enrolled in the <em>selected</em> course mode.")}
+                    <br /><br />
+                    ${_("Selecting from course modes has no effect if 'Unenroll' is selected.")}
+                </p>
+            </div>
+        </label>
+        <select id="course-modes-list-selector" name="course_mode" class="course-modes-list-selector">
+            %for mode_name, mode_data in section_data['course_modes'].items():
+                <option value="${mode_name}">${mode_data.name}</option>
+            %endfor
+        </select>
+    </div>
+    <div class="enroll-option">
         <label class="has-hint">
             <input type="checkbox" name="auto-enroll" id="auto-enroll" value="Auto-Enroll" checked="yes" aria-describedby="heading-batch-enrollment">
             <span class="label-text">${_("Auto Enroll")}</span>
