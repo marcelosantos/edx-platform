@@ -468,7 +468,6 @@ def _section_membership(course, access, is_white_label):
     """ Provide data for the corresponding dashboard section """
     course_key = course.id
     course_modes = CourseMode.modes_for_course_dict(course_key)
-
     ccx_enabled = settings.FEATURES.get('CUSTOM_COURSES_EDX', False) and course.enable_ccx
     section_data = {
         'section_key': 'membership',

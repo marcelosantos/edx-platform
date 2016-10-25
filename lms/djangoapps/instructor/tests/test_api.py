@@ -54,6 +54,7 @@ from student.tests.factories import UserFactory, CourseModeFactory, AdminFactory
 from student.roles import CourseBetaTesterRole, CourseSalesAdminRole, CourseFinanceAdminRole, CourseInstructorRole
 from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase, ModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory, ItemFactory
+from course_modes.tests.factories import CourseModeFactory
 from xmodule.fields import Date
 
 from courseware.models import StudentFieldOverride
@@ -1079,6 +1080,62 @@ class TestInstructorAPIEnrollment(SharedModuleStoreTestCase, LoginEnrollmentTest
         self.assertEqual(manual_enrollments[0].state_transition, UNENROLLED_TO_ENROLLED)
         res_json = json.loads(response.content)
         self.assertEqual(res_json, expected)
+
+    def test_enroll_in_specific_course_mode(self):
+        # add two course modes 'honor' and 'verified' for the provided course
+        CourseModeFactory.create(course_id=unicode(self.course.id), mode_slug=CourseMode.HONOR)
+        CourseModeFactory.create(course_id=unicode(self.course.id), mode_slug=CourseMode.VERIFIED)
+
+        # verify that there are now two course modes 'honor' and 'verified'
+        self.assertEqual(len(CourseMode.modes_for_course_dict(self.course.id)), 2)
+
+        # now use enrollment api to enroll a student in 'verified' mode directly
+        url = reverse('students_update_enrollment', kwargs={'course_id': unicode(self.course.id)})
+        response = self.client.post(
+            url,
+            {
+                'identifiers': self.notenrolled_student.username,
+                'action': 'enroll',
+                'email_students': False,
+                'course_mode': CourseMode.VERIFIED,
+            }
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # test the response data
+        expected = {
+            'action': 'enroll',
+            'auto_enroll': False,
+            'results': [
+                {
+                    'identifier': self.notenrolled_student.username,
+                    'before': {
+                        'enrollment': False,
+                        'auto_enroll': False,
+                        'user': True,
+                        'allowed': False,
+                    },
+                    'after': {
+                    'enrollment': True,
+                        'auto_enroll': False,
+                        'user': True,
+                        'allowed': False,
+                    }
+                }
+            ]
+        }
+
+        # verify the enrollment api response data and check that the student
+        # is now enrolled in the 'verified' mode
+        course_enrollment = CourseEnrollment.objects.get(
+            user=self.notenrolled_student, course_id=self.course.id
+        )
+        manual_enrollments = ManualEnrollmentAudit.objects.all()
+        self.assertEqual(manual_enrollments.count(), 1)
+        self.assertEqual(manual_enrollments[0].state_transition, UNENROLLED_TO_ENROLLED)
+        res_json = json.loads(response.content)
+        self.assertEqual(res_json, expected)
+        self.assertEqual(course_enrollment.mode, 'verified')
 
     def test_enroll_without_email(self):
         url = reverse('students_update_enrollment', kwargs={'course_id': self.course.id.to_deprecated_string()})

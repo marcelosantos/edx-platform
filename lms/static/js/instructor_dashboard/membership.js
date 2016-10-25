@@ -577,7 +577,7 @@ such that the value can be defined later than this assignment (file load order).
             this.$identifier_input.val('');
             this.$reason_field.val('');
             this.$checkbox_emailstudents.attr('checked', true);
-            this.$course_mode[0].selectedIndex=0;
+            this.$course_mode.find('option:eq(0)').prop('selected', true);
             return this.$checkbox_autoenroll.attr('checked', true);
         };
 
