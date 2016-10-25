@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -152,6 +153,11 @@ class ForumsConfig(ConfigurationModel):
 
     # For now, just tweak the connection timeout settings. We can add more later.
     connection_timeout = models.FloatField(default=5.0)
+
+    @property
+    def api_key(self):
+        """The API key used to authenticate to the comments service."""
+        return getattr(settings, "COMMENTS_SERVICE_KEY", None),
 
     def __unicode__(self):
         """Simple representation so the admin screen looks less ugly."""
