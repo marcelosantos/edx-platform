@@ -45,21 +45,6 @@ class DjangoXBlockUserStateClient(XBlockUserStateClient):
         even though the actual stored state in the database will be ``"{}"``).
     """
 
-    # metric accumulators
-    #
-    # _nr_block_stats is a doubly nested dict which should be referenced in the
-    # following order:
-    #
-    #     _nr_block_stats[function_name][block_type][stat_name]
-    #
-    # where the result is a number value described by stat_name, and specific
-    # to the given block_type and function_name.
-    #
-    _nr_block_stats = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
-    # _nr_function_duration represents the total time in milliseconds (the
-    # value) spent in some function (the key).
-    _nr_function_duration = defaultdict(int)
-
     # Use this sample rate for DataDog events.
     API_DATADOG_SAMPLE_RATE = 0.1
 
@@ -89,6 +74,21 @@ class DjangoXBlockUserStateClient(XBlockUserStateClient):
                 the user state.
         """
         self.user = user
+
+        # initialize NR metric accumulators below
+
+        # A doubly nested dict which should be referenced in the following
+        # order:
+        #
+        #     self._nr_block_stats[function_name][block_type][stat_name]
+        #
+        # where the result is a number value described by stat_name, and specific
+        # to the given block_type and function_name.
+        self._nr_block_stats = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+
+        # A dict representing the total time in milliseconds (the value) spent
+        # in some function (the key).
+        self._nr_function_duration = defaultdict(int)
 
     def _get_student_modules(self, username, block_keys):
         """
@@ -137,56 +137,72 @@ class DjangoXBlockUserStateClient(XBlockUserStateClient):
             sample_rate=self.API_DATADOG_SAMPLE_RATE,
         )
 
-    @staticmethod
-    def _nr_capture_metric(function_name, stat_name, stat_value, block_type=None):
-        """
-        Capture a statistic about this user state transaction in New Relic.
-        """
-        metric_name_parts = []
-        # in any case, stat_name is always last
-        if block_type is None:
-            metric_name_parts = ['xb_user_state', function_name, stat_name]
-        else:
-            metric_name_parts = ['xb_user_state', function_name, block_type, stat_name]
-        metric_name = '.'.join(metric_name_parts)
-        newrelic.agent.add_custom_parameter(metric_name, stat_value)
-
-    @classmethod
-    def _nr_accumulate_stats(cls, function_name, block_stats=None, duration=None):
+    def _nr_accumulate_stats(self, function_name, block_stats=None, duration=None):
         """Accumulate stats related to user state transactions"""
         # accumulate stats related to blocks
         if block_stats is not None:
             for block_type in block_stats.keys():
                 for stat_name in block_stats[block_type].keys():
-                    cls._nr_block_stats[function_name][block_type][stat_name] += block_stats[block_type][stat_name]
+                    self._nr_block_stats[function_name][block_type][stat_name] += block_stats[block_type][stat_name]
 
-        # accumulate states related to function durations
+        # accumulate stats related to function durations
         if duration is not None:
-            cls._nr_function_duration[function_name] += duration
+            self._nr_function_duration[function_name] += duration
 
-    @classmethod
-    def nr_flush(cls):
+    def _nr_metric_name(self, function_name, stat_name, block_type=None):
         """
-        Flush collected stats out to NR.  Call this after the last call to
-        get_many or set_many.
+        Return a metric name (string) representing the provided descriptors.
+        The return value is directly usable for custom NR metrics.
         """
-        for function_name in ['get_many', 'set_many']:
-            if function_name not in cls._nr_block_stats or \
-               function_name not in cls._nr_function_duration:
-                continue
+        if block_type is None:
+            metric_name_parts = ['xb_user_state', function_name, stat_name]
+        else:
+            metric_name_parts = ['xb_user_state', function_name, block_type, stat_name]
+        return '.'.join(metric_name_parts)
+
+    def _nr_collect_metrics(self):
+        """
+        Process accumulated stats by producing a single dict mapping metric
+        names to metric values.  The items in the dict returned by this
+        function can be directly used as arguments for
+        newrelic.agent.add_custom_parameter().
+        """
+        metrics = {}
+        for function_name in self._nr_function_duration.iterkeys():
+            # derive totals by summing all the block stats
             total_block_count = total_block_size = 0
-            for block_info in cls._nr_block_stats[function_name].values():
+            for block_info in self._nr_block_stats[function_name].itervalues():
                 total_block_count += block_info['count']
                 total_block_size += block_info['size']
-            cls._nr_capture_metric(function_name, 'num_items', total_block_count)
-            cls._nr_capture_metric(function_name, 'data_size', total_block_size)
-            cls._nr_capture_metric(function_name, 'duration', cls._nr_function_duration[function_name])
-            for block_type, block_info in cls._nr_block_stats[function_name].iteritems():
-                cls._nr_capture_metric(function_name, 'num_items', block_info['count'], block_type=block_type)
-                cls._nr_capture_metric(function_name, 'data_size', block_info['size'], block_type=block_type)
-        # clear the accumulators
-        cls._nr_block_stats.clear()
-        cls._nr_function_duration.clear()
+
+            # collect metrics related to the entire function call
+            metrics[self._nr_metric_name(function_name, 'num_items')] = total_block_count
+            metrics[self._nr_metric_name(function_name, 'data_size')] = total_block_size
+            metrics[self._nr_metric_name(function_name, 'duration')] = \
+                self._nr_function_duration[function_name]
+
+            # collect metrics related to specific block types
+            for block_type, block_info in self._nr_block_stats[function_name].iteritems():
+                metrics[self._nr_metric_name(function_name, 'num_items', block_type=block_type)] = \
+                    block_info['count']
+                metrics[self._nr_metric_name(function_name, 'data_size', block_type=block_type)] = \
+                    block_info['size']
+        return metrics
+
+    def nr_flush(self):
+        """
+        Send statistics to New Relic.  Call this at the end of a view which
+        makes use of this class.
+        """
+        metrics = self._nr_collect_metrics()
+
+        # simply report all collected metrics:
+        for metric_name, metric_value in metrics.iteritems():
+            newrelic.agent.add_custom_parameter(metric_name, metric_value)
+
+        # No need to clear the accumulators since this instance should be used
+        # at most once per request.  Subsequent requests will instantiate new
+        # instances with empty accumulators.
 
     def get_many(self, username, block_keys, scope=Scope.user_state, fields=None):
         """
