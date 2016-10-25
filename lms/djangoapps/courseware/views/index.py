@@ -22,6 +22,7 @@ import logging
 import newrelic.agent
 import urllib
 
+from xblock.fields import Scope
 from xblock.fragment import Fragment
 from opaque_keys.edx.keys import CourseKey
 from openedx.core.lib.time_zone_utils import get_user_time_zone
@@ -145,7 +146,12 @@ class CoursewareIndex(View):
                 self._save_positions()
                 self._prefetch_and_bind_section()
 
-        return render_to_response('courseware/courseware.html', self._create_courseware_context())
+        courseware_context = self._create_courseware_context()
+
+        # FIXME: this level of digging is unsafe, only use it for testing
+        self.field_data_cache.cache[Scope.user_state]._client.nr_flush()
+
+        return render_to_response('courseware/courseware.html', courseware_context)
 
     def _redirect_if_not_requested_section(self):
         """
