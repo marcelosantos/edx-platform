@@ -9,8 +9,8 @@ from django.core.management import BaseCommand
 
 from opaque_keys.edx.keys import CourseKey
 
-from ...models import GradedAssignment
-from ... import tasks
+from lti_provider.models import GradedAssignment
+from lti_provider import tasks
 from student.models import CourseEnrollment
 
 
