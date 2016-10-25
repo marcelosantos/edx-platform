@@ -48,7 +48,8 @@ class GradeTestBase(SharedModuleStoreTestCase):
             parent=cls.chapter,
             category='sequential',
             display_name="Test Sequential 1",
-            graded=True
+            graded=True,
+            format="Homework"
         )
         cls.vertical = ItemFactory.create(
             parent=cls.sequence,
@@ -103,6 +104,28 @@ class TestCourseGradeFactory(GradeTestBase):
             with patch('lms.djangoapps.grades.new.course_grade.CourseGrade.load_persisted_grade') as mock_save_grades:
                 grade_factory.create(self.course)
         self.assertEqual(mock_save_grades.called, feature_flag and course_setting)
+
+    def test_course_grade_creation(self):
+        grading_policy = {
+            "GRADER": [
+                {
+                    "type": "Homework",
+                    "min_count": 1,
+                    "drop_count": 0,
+                    "short_label": "HW",
+                    "weight": 1.0,
+                },
+            ],
+            "GRADE_CUTOFFS": {
+                "Pass": 0.5,
+            },
+        }
+        self.course.set_grading_policy(grading_policy)
+        grade_factory = CourseGradeFactory(self.request.user)
+        with mock_get_score(1, 2):
+            course_grade = grade_factory.create(self.course)
+        self.assertEqual(course_grade.letter_grade, u'Pass')
+        self.assertEqual(course_grade.percent, 0.5)
 
 
 @ddt.ddt
