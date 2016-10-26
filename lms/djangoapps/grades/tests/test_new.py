@@ -582,10 +582,7 @@ class TestCourseGradeLogging(SharedModuleStoreTestCase, ProblemSubmissionTestMix
             course_id=self.course.id,
             enabled_for_course=True
         ):
-            with patch('lms.djangoapps.grades.new.course_grade.log') as log_mock:
-                # TODO: once merged with the "glue code" PR, update expected logging to include the relevant new info
-
-                # the course grade has not been created, so we expect each grade to be created
+            with patch('lms.djangoapps.grades.new.course_grade.log') as log_mock:# the course grade has not been created, so we expect each grade to be created
                 log_statement = u''.join((
                     u"compute_and_update, read_only: {0}, subsections read/created: {1}/{2}, blocks ",
                     u"accessed: {3}, total graded subsections: {4}"
@@ -595,12 +592,24 @@ class TestCourseGradeLogging(SharedModuleStoreTestCase, ProblemSubmissionTestMix
                     log_mock.warning,
                     log_statement
                 )
-                log_mock.reset_mock()
 
                 # the course grade has been created, so we expect to read it from the db
                 log_statement = u"load_persisted_grade"
                 self._create_course_grade_and_check_logging(
                     grade_factory,
                     log_mock.info,
+                    log_statement
+                )
+
+                # only problem submission, a subsection grade update triggers
+                # a course grade update
+                self.submit_question_answer(u'test_problem_1', {u'2_1': u'choice_choice_2'})
+                log_statement = u''.join((
+                    u"compute_and_update, read_only: {0}, subsections read/created: {1}/{2}, blocks ",
+                    u"accessed: {3}, total graded subsections: {4}"
+                )).format(False, 3, 0, 3, 2)
+                self._create_course_grade_and_check_logging(
+                    grade_factory,
+                    log_mock.warning,
                     log_statement
                 )
