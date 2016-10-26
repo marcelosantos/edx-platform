@@ -1116,7 +1116,7 @@ class TestInstructorAPIEnrollment(SharedModuleStoreTestCase, LoginEnrollmentTest
                         'allowed': False,
                     },
                     'after': {
-                    'enrollment': True,
+                        'enrollment': True,
                         'auto_enroll': False,
                         'user': True,
                         'allowed': False,
