@@ -469,7 +469,7 @@ class SequenceModule(SequenceFields, ProctoringFields, XModule):
                 'allow_unproctored': self.allow_unproctored_exam,
                 'due_date': self.due
             }
-            log.info("Proctoring context: {context}".format(context=context))
+            log.info("Proctoring context: %s", context)
 
             # inject the user's credit requirements and fulfillments
             if credit_service:
