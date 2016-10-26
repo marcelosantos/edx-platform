@@ -141,13 +141,17 @@ class DjangoXBlockUserStateClient(XBlockUserStateClient):
         """Accumulate stats related to user state transactions"""
         # accumulate stats related to blocks
         if block_stats is not None:
-            for block_type in block_stats.keys():
-                for stat_name in block_stats[block_type].keys():
-                    self._nr_block_stats[function_name][block_type][stat_name] += block_stats[block_type][stat_name]
+            for block_type in block_stats.iterkeys():
+                for stat_name in block_stats[block_type].iterkeys():
+                    metric_name = self._nr_metric_name(function_name, stat_name, block_type=block_type)
+                    metric_value = block_stats[block_type][stat_name]
+                    newrelic_custom_metrics.append(metric_name, metric_value)
 
         # accumulate stats related to function durations
         if duration is not None:
-            self._nr_function_duration[function_name] += duration
+            metric_name = self._nr_metric_name(function_name, 'duration')
+            metric_value = duration
+            newrelic_custom_metrics.append(metric_name, metric_value)
 
     def _nr_metric_name(self, function_name, stat_name, block_type=None):
         """
@@ -159,50 +163,6 @@ class DjangoXBlockUserStateClient(XBlockUserStateClient):
         else:
             metric_name_parts = ['xb_user_state', function_name, block_type, stat_name]
         return '.'.join(metric_name_parts)
-
-    def _nr_collect_metrics(self):
-        """
-        Process accumulated stats by producing a single dict mapping metric
-        names to metric values.  The items in the dict returned by this
-        function can be directly used as arguments for
-        newrelic.agent.add_custom_parameter().
-        """
-        metrics = {}
-        for function_name in self._nr_function_duration.iterkeys():
-            # derive totals by summing all the block stats
-            total_block_count = total_block_size = 0
-            for block_info in self._nr_block_stats[function_name].itervalues():
-                total_block_count += block_info['count']
-                total_block_size += block_info['size']
-
-            # collect metrics related to the entire function call
-            metrics[self._nr_metric_name(function_name, 'num_items')] = total_block_count
-            metrics[self._nr_metric_name(function_name, 'data_size')] = total_block_size
-            metrics[self._nr_metric_name(function_name, 'duration')] = \
-                self._nr_function_duration[function_name]
-
-            # collect metrics related to specific block types
-            for block_type, block_info in self._nr_block_stats[function_name].iteritems():
-                metrics[self._nr_metric_name(function_name, 'num_items', block_type=block_type)] = \
-                    block_info['count']
-                metrics[self._nr_metric_name(function_name, 'data_size', block_type=block_type)] = \
-                    block_info['size']
-        return metrics
-
-    def nr_flush(self):
-        """
-        Send statistics to New Relic.  Call this at the end of a view which
-        makes use of this class.
-        """
-        metrics = self._nr_collect_metrics()
-
-        # simply report all collected metrics:
-        for metric_name, metric_value in metrics.iteritems():
-            newrelic.agent.add_custom_parameter(metric_name, metric_value)
-
-        # No need to clear the accumulators since this instance should be used
-        # at most once per request.  Subsequent requests will instantiate new
-        # instances with empty accumulators.
 
     def get_many(self, username, block_keys, scope=Scope.user_state, fields=None):
         """
@@ -244,8 +204,10 @@ class DjangoXBlockUserStateClient(XBlockUserStateClient):
                 continue
 
             # collect statistics for metric reporting
-            block_stats[usage_key.block_type]['count'] += 1
-            block_stats[usage_key.block_type]['size'] += state_length
+            newrelic_custom_metrics.increment(self._nr_metric_name('get_many', 'count'))
+            newrelic_custom_metrics.increment(self._nr_metric_name('get_many', 'count', block_type=usage_key.block_type))
+            newrelic_custom_metrics.append(self._nr_metric_name('get_many', 'size'), state_length)
+            newrelic_custom_metrics.append(self._nr_metric_name('get_many', 'size', block_type=usage_key.block_type), state_length)
 
             # filter state on fields
             if fields is not None:
@@ -263,7 +225,7 @@ class DjangoXBlockUserStateClient(XBlockUserStateClient):
 
         self._ddog_histogram(evt_time, 'get_many.blks_out', total_block_count)
         self._ddog_histogram(evt_time, 'get_many.response_time', duration)
-        self._nr_accumulate_stats('get_many', block_stats=block_stats, duration=duration)
+        newrelic_custom_metrics.append(self._nr_metric_name('get_many', 'duration'), duration)
 
     def set_many(self, username, block_keys_to_state, scope=Scope.user_state):
         """
@@ -334,8 +296,10 @@ class DjangoXBlockUserStateClient(XBlockUserStateClient):
                     ))
                 else:
                     # collect statistics for metric reporting
-                    block_stats[usage_key.block_type]['count'] += 1
-                    block_stats[usage_key.block_type]['size'] += len(student_module.state)
+                    newrelic_custom_metrics.increment(self._nr_metric_name('set_many', 'count'))
+                    newrelic_custom_metrics.increment(self._nr_metric_name('set_many', 'count', block_type=usage_key.block_type))
+                    newrelic_custom_metrics.append(self._nr_metric_name('set_many', 'size'), len(student_module.state))
+                    newrelic_custom_metrics.append(self._nr_metric_name('set_many', 'size', block_type=usage_key.block_type), len(student_module.state))
 
             # The rest of this method exists only to report metrics.
 
@@ -357,15 +321,18 @@ class DjangoXBlockUserStateClient(XBlockUserStateClient):
             self._ddog_histogram(evt_time, 'set_many.fields_updated', num_fields_updated)
 
             if created:
-                block_stats[usage_key.block_type]['count'] += 1
-                block_stats[usage_key.block_type]['size'] += len(student_module.state)
+                # collect statistics for metric reporting
+                newrelic_custom_metrics.increment(self._nr_metric_name('set_many', 'count'))
+                newrelic_custom_metrics.increment(self._nr_metric_name('set_many', 'count', block_type=usage_key.block_type))
+                newrelic_custom_metrics.append(self._nr_metric_name('set_many', 'size'), len(student_module.state))
+                newrelic_custom_metrics.append(self._nr_metric_name('set_many', 'size', block_type=usage_key.block_type), len(student_module.state))
 
         # Events for the entire set_many call.
         finish_time = time()
         duration = (finish_time - evt_time) * 1000  # milliseconds
         self._ddog_histogram(evt_time, 'set_many.blks_updated', len(block_keys_to_state))
         self._ddog_histogram(evt_time, 'set_many.response_time', duration)
-        self._nr_accumulate_stats('set_many', block_stats=block_stats, duration=duration)
+        newrelic_custom_metrics.append(self._nr_metric_name('set_many', 'duration'), duration)
 
     def delete_many(self, username, block_keys, scope=Scope.user_state, fields=None):
         """

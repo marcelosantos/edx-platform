@@ -21,14 +21,14 @@ REQUEST_CACHE = _RequestCache()
 
 class RequestCache(object):
     @classmethod
-    def get_request_cache(cls, name=None):
+    def get_request_cache(cls, name=None, default={}):
         """
         This method is deprecated. Please use :func:`request_cache.get_cache`.
         """
         if name is None:
             return REQUEST_CACHE
         else:
-            return REQUEST_CACHE.data.setdefault(name, {})
+            return REQUEST_CACHE.data.setdefault(name, default)
 
     @classmethod
     def get_current_request(cls):
