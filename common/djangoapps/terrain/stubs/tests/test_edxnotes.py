@@ -106,7 +106,6 @@ class StubEdxNotesServiceTest(unittest.TestCase):
         # get response with default page and page size
         response = requests.get(self._get_url("api/v1/search"), params={
             "user": "dummy-user-id",
-            "usage_id": "dummy-usage-id",
             "course_id": "dummy-course-id",
         })
 
@@ -125,7 +124,6 @@ class StubEdxNotesServiceTest(unittest.TestCase):
         # search notes with text that don't exist
         response = requests.get(self._get_url("api/v1/search"), params={
             "user": "dummy-user-id",
-            "usage_id": "dummy-usage-id",
             "course_id": "dummy-course-id",
             "text": "world war 2"
         })
@@ -141,6 +139,19 @@ class StubEdxNotesServiceTest(unittest.TestCase):
             next_page=None,
             previous_page=None
         )
+
+    def test_search_usage_ids(self):
+        """
+        Test search with usage ids.
+        """
+        response = requests.get(self._get_url("api/v1/search"), params={
+            "user": "dummy-user-id",
+            "course_id": "dummy-course-id",
+            "usage_id": "dummy-usage-id"
+        })
+        self.assertTrue(response.ok)
+        response = response.json()
+        self.assertEqual(response[0]["usage_id"], "dummy-usage-id")
 
     def test_delete(self):
         notes = self._get_notes()
