@@ -27,8 +27,6 @@ class CourseGrade(object):
     def __init__(self, student, course, course_structure):
         self.student = student
         self.course = course
-        self.course_version = getattr(course, 'course_version', None)
-        self.course_edited_timestamp = getattr(course, 'subtree_edited_on', None)
         self.course_structure = course_structure
         self._percent = None
         self._letter_grade = None
@@ -164,8 +162,8 @@ class CourseGrade(object):
             PersistentCourseGrade.update_or_create_course_grade(
                 user_id=self.student.id,
                 course_id=self.course.id,
-                course_version=self.course_version,
-                course_edited_timestamp=self.course_edited_timestamp,
+                course_version=getattr(self.course, 'course_version', None),
+                course_edited_timestamp=getattr(self.course, 'subtree_edited_on', None),
                 grading_policy_hash=grading_policy_hash,
                 percent_grade=self.percent,
                 letter_grade=self.letter_grade or "",
