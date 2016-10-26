@@ -556,7 +556,7 @@ class TestCourseGrader(TestSubmittingProblems):
         """
         self.basic_setup()
         self.check_grade_percent(0)
-        self.assertEqual(self.get_grade_summary()['grade'], '')
+        self.assertEqual(self.get_grade_summary()['grade'], None)
 
     def test_b_grade_exact(self):
         """

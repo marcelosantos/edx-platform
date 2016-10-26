@@ -719,7 +719,7 @@ def _progress(request, course_key, student_id):
     # additional DB lookup (this kills the Progress page in particular).
     student = User.objects.prefetch_related("groups").get(id=student.id)
 
-    course_grade = CourseGradeFactory(student).create(course, read_only=False)
+    course_grade = CourseGradeFactory(student).create(course)
     courseware_summary = course_grade.chapter_grades
     grade_summary = course_grade.summary
 
