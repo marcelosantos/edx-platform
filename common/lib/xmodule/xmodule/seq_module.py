@@ -117,6 +117,12 @@ class ProctoringFields(object):
         scope=Scope.settings,
     )
 
+    def _get_course(self):
+        """
+        Return course by course id.
+        """
+        return self.descriptor.runtime.modulestore.get_course(self.course_id)  # pylint: disable=no-member
+
     @property
     def is_timed_exam(self):
         """
@@ -129,6 +135,13 @@ class ProctoringFields(object):
     def is_proctored_exam(self):
         """ Alias the is_proctored_enabled field to the more legible is_proctored_exam """
         return self.is_proctored_enabled
+
+    @property
+    def allow_unproctored_exam(self):
+        """
+        Returns true if unproctored exams are allowed in addition to proctored exams.
+        """
+        return self._get_course().enable_unproctored_exams
 
     @is_proctored_exam.setter
     def is_proctored_exam(self, value):
@@ -453,8 +466,10 @@ class SequenceModule(SequenceFields, ProctoringFields, XModule):
                     self.default_time_limit_minutes else 0
                 ),
                 'is_practice_exam': self.is_practice_exam,
+                'allow_unproctored': self.allow_unproctored_exam,
                 'due_date': self.due
             }
+            log.info("Proctoring context: {context}".format(context=context))
 
             # inject the user's credit requirements and fulfillments
             if credit_service:

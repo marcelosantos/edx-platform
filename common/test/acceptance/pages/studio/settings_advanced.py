@@ -220,6 +220,7 @@ class AdvancedSettingsPage(CoursePage):
             'video_bumper',
             'cert_html_view_enabled',
             'enable_proctored_exams',
+            'enable_unproctored_exams',
             'enable_timed_exams',
             'enable_subsection_gating',
             'learning_info',

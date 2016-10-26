@@ -301,17 +301,11 @@ html.video-fullscreen {
           &.fa-arrow-circle-right {
             top: 30%;
           }
-        }
-        &:last-child {
-          > .fa {
+          &.unproctored-exam {
             color: rgb(206, 216, 220);
           }
-          border-bottom: none;
         }
         &:last-child {
-          > .practice-exam {
-            color: $uxpl-blue-base;
-          }
           border-bottom: none;
         }
       }

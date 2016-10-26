@@ -740,6 +740,16 @@ class CourseFields(object):
         scope=Scope.settings
     )
 
+    enable_unproctored_exams = Boolean(
+        display_name=_("Enable Unproctored Exams"),
+        help=_(
+            "Enter true or false. If this value is true, unproctored exams are enabled in your course. "
+            "If it is false, all exams will be required to be proctored."
+        ),
+        default=True,
+        scope=Scope.settings
+    )
+
     create_zendesk_tickets = Boolean(
         display_name=_("Create Zendesk Tickets For Suspicious Proctored Exam Attempts"),
         help=_(
