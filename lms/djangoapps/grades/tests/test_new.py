@@ -582,7 +582,8 @@ class TestCourseGradeLogging(SharedModuleStoreTestCase, ProblemSubmissionTestMix
             course_id=self.course.id,
             enabled_for_course=True
         ):
-            with patch('lms.djangoapps.grades.new.course_grade.log') as log_mock:# the course grade has not been created, so we expect each grade to be created
+            with patch('lms.djangoapps.grades.new.course_grade.log') as log_mock:
+                # the course grade has not been created, so we expect each grade to be created
                 log_statement = u''.join((
                     u"compute_and_update, read_only: {0}, subsections read/created: {1}/{2}, blocks ",
                     u"accessed: {3}, total graded subsections: {4}"
@@ -592,6 +593,7 @@ class TestCourseGradeLogging(SharedModuleStoreTestCase, ProblemSubmissionTestMix
                     log_mock.warning,
                     log_statement
                 )
+                log_mock.reset_mock()
 
                 # the course grade has been created, so we expect to read it from the db
                 log_statement = u"load_persisted_grade"
@@ -600,6 +602,7 @@ class TestCourseGradeLogging(SharedModuleStoreTestCase, ProblemSubmissionTestMix
                     log_mock.info,
                     log_statement
                 )
+                log_mock.reset_mock()
 
                 # only problem submission, a subsection grade update triggers
                 # a course grade update

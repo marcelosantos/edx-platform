@@ -32,35 +32,7 @@ class CourseGrade(object):
         self.course_structure = course_structure
         self._percent = None
         self._letter_grade = None
-        self.subsection_grade_factory = SubsectionGradeFactory(self.student, self.course, self.course_structure)
-
-    @classmethod
-    def load_persisted_grade(cls, user, course, course_structure):
-        """
-        Initializes a CourseGrade object, filling its members with persisted values from the database.
-
-        If the grading policy is out of date, recomputes the grade.
-
-        If no persisted values are found, returns None.
-        """
-        try:
-            persistent_grade = PersistentCourseGrade.read_course_grade(user.id, course.id)
-        except PersistentCourseGrade.DoesNotExist:
-            return None
-        course_grade = CourseGrade(user, course, course_structure)
-
-        current_grading_policy_hash = course_grade.get_grading_policy_hash(course.location, course_structure)
-        if current_grading_policy_hash != persistent_grade.grading_policy_hash:
-            course_grade.compute_and_update(read_only=False)
-        else:
-            course_grade._percent = persistent_grade.percent_grade  # pylint: disable=protected-access
-            course_grade._letter_grade = persistent_grade.letter_grade  # pylint: disable=protected-access
-            course_grade.course_version = persistent_grade.course_version
-            course_grade.course_edited_timestamp = persistent_grade.course_edited_timestamp
-
-        course_grade._log_event(log.info, u"load_persisted_grade")  # pylint: disable=protected-access
-
-        return course_grade
+        self._subsection_grade_factory = SubsectionGradeFactory(self.student, self.course, self.course_structure)
 
     @lazy
     def subsection_grade_totals_by_format(self):
@@ -118,7 +90,7 @@ class CourseGrade(object):
             children = self.course_structure.get_children(chapter_key)
             for subsection_key in children:
                 chapter_subsection_grades.append(
-                    self.subsection_grade_factory.create(self.course_structure[subsection_key], read_only=True)
+                    self._subsection_grade_factory.create(self.course_structure[subsection_key], read_only=True)
                 )
 
             chapter_grades.append({
@@ -169,7 +141,6 @@ class CourseGrade(object):
 
         # These two fields are stored separately from percent and grade. The should match unless accessed in between
         # course and subsection grade updates. If that happens we re-populate them here.
-        # TODO: re-run tests that hit this code after Eric's PR lands without explicitly populating grades
         grade_summary['totaled_scores'] = self.subsection_grade_totals_by_format
         grade_summary['raw_scores'] = list(self.locations_to_scores.itervalues())
 
@@ -184,11 +155,11 @@ class CourseGrade(object):
         subsections_total = sum([len(chapter['sections']) for chapter in self.chapter_grades])
 
         total_graded_subsections = sum(len(x) for x in self.subsection_grade_totals_by_format.itervalues())
-        subsections_created = len(self.subsection_grade_factory._unsaved_subsection_grades)  # pylint: disable=protected-access
+        subsections_created = len(self._subsection_grade_factory._unsaved_subsection_grades)  # pylint: disable=protected-access
         subsections_read = subsections_total - subsections_created
         blocks_total = len(self.locations_to_scores)
         if not read_only:
-            self.subsection_grade_factory.bulk_create_unsaved()
+            self._subsection_grade_factory.bulk_create_unsaved()
             grading_policy_hash = self.get_grading_policy_hash(self.course.location, self.course_structure)
             PersistentCourseGrade.update_or_create_course_grade(
                 user_id=self.student.id,
@@ -246,6 +217,34 @@ class CourseGrade(object):
             GradesTransformer,
             'grading_policy_hash'
         )
+
+    @classmethod
+    def load_persisted_grade(cls, user, course, course_structure):
+        """
+        Initializes a CourseGrade object, filling its members with persisted values from the database.
+
+        If the grading policy is out of date, recomputes the grade.
+
+        If no persisted values are found, returns None.
+        """
+        try:
+            persistent_grade = PersistentCourseGrade.read_course_grade(user.id, course.id)
+        except PersistentCourseGrade.DoesNotExist:
+            return None
+        course_grade = CourseGrade(user, course, course_structure)
+
+        current_grading_policy_hash = course_grade.get_grading_policy_hash(course.location, course_structure)
+        if current_grading_policy_hash != persistent_grade.grading_policy_hash:
+            return None
+        else:
+            course_grade._percent = persistent_grade.percent_grade  # pylint: disable=protected-access
+            course_grade._letter_grade = persistent_grade.letter_grade  # pylint: disable=protected-access
+            course_grade.course_version = persistent_grade.course_version
+            course_grade.course_edited_timestamp = persistent_grade.course_edited_timestamp
+
+        course_grade._log_event(log.info, u"load_persisted_grade")  # pylint: disable=protected-access
+
+        return course_grade
 
     @staticmethod
     def _calc_percent(grade_value):
@@ -352,12 +351,11 @@ class CourseGradeFactory(object):
         if not PersistentGradesEnabledFlag.feature_enabled(course.id):
             return None
 
-        saved_course_grade = CourseGrade.load_persisted_grade(
+        return CourseGrade.load_persisted_grade(
             self.student,
             course,
             course_structure
         )
-        return saved_course_grade
 
     def _user_has_access_to_course(self, course_structure):
         """
