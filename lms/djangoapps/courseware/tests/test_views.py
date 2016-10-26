@@ -209,7 +209,7 @@ class ViewsTestCase(ModuleStoreTestCase):
             parent_location=self.chapter.location,
             due=datetime(2013, 9, 18, 11, 30, 00),
             display_name='Sequential 1',
-            format='Due'
+            format='Homework'
         )
         self.vertical = ItemFactory.create(
             category='vertical',

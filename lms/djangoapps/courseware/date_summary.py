@@ -70,11 +70,9 @@ class DateSummary(object):
         """
         The time zone in which to display -- defaults to UTC
         """
-        # return get_time_zone_abbr(
         return timezone(
             self.user.preferences.model.get_value(self.user, "time_zone", "UTC")
         )
-        # )
 
     def __init__(self, course, user):
         self.course = course

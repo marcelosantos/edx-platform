@@ -20,7 +20,10 @@ from django.core.urlresolvers import reverse
         <span class="course-title">${course.display_name_with_default}</span>
       </h2>
         <%
-            course_date_string = course.retrieve_starttime().strftime('%Y-%m-%dT%H:%M:%S%z')
+            if course.start is not None:
+                course_date_string = course.start.strftime('%Y-%m-%dT%H:%M:%S%z')
+            else:
+                course_date_string = ''
         %>
       % if isinstance(course_start_date, str):
         <div class="course-date" aria-hidden="true">${_("Starts")}: ${course_start_date}</div>

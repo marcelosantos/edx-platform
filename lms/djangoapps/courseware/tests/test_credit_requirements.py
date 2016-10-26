@@ -121,7 +121,7 @@ class ProgressPageCreditRequirementsTest(SharedModuleStoreTestCase):
             response,
             "{}, you have met the requirements for credit in this course.".format(self.USER_FULL_NAME)
         )
-        # self.assertContains(response, "Completed by {date}")
+        self.assertContains(response, "Completed by {date}")
         self.assertContains(response, datetime.datetime.now(UTC).strftime('%Y-%m-%d %H:%M'))
         self.assertNotContains(response, "95%")
 

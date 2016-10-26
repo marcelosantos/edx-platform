@@ -1199,22 +1199,6 @@ class CourseDescriptor(CourseFields, SequenceDescriptor, LicenseMixin):
         """Return the course_id for this course"""
         return self.location.course_key
 
-    def retrieve_starttime(self):
-        """
-        Returns the desired datetime object corresponding to the course start date
-        """
-        # pylint: disable=no-member
-        return self.start
-        # pylint: enable=no-member
-
-    def retrieve_endtime(self):
-        """
-        Returns the desired datetime object corresponding to the course's start date
-        """
-        # pylint: disable=no-member
-        return self.end
-        # pylint: enable=no-member
-
     def start_datetime_text(self, format_string="SHORT_DATE", time_zone=utc):
         """
         Returns the desired text corresponding the course's start date and time in specified time zone, defaulted

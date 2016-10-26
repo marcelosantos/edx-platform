@@ -120,7 +120,7 @@ from django.utils.http import urlquote_plus
                                         <span>${_("Verification Declined" )}</span>
                                         %elif requirement['status'] == 'satisfied':
                                         <span class="fa fa-check" aria-hidden="true"></span>
-                                        <span class="localized-datetime" data-datetime="${requirement['status_date']}" data-string="${_('due {date}')}" data-timezone="${user_timezone}" data-language="${user_language}"</span>
+                                        <span class="localized-datetime" data-datetime="${requirement['status_date']}" data-string="${_('Completed by {date}')}" data-timezone="${user_timezone}" data-language="${user_language}"</span>
                                         %endif
                                     %else:
                                     <span class="not-achieve">${_("Upcoming")}</span>
