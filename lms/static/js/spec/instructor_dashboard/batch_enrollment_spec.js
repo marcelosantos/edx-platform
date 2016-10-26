@@ -1,6 +1,5 @@
 define([
     'jquery',
-    'js/instructor_dashboard/instructor_dashboard',
     'js/instructor_dashboard/membership'
 ],
     function($) {
@@ -10,7 +9,7 @@ define([
                 loadFixtures('js/fixtures/instructor_dashboard/batchenrollment.html');
 
                 this.membershipSection = $('section#membership');
-                new window.InstructorDashboard.sections.Membership(this.membershipSection);
+                window.InstructorDashboard.sections.Membership(this.membershipSection);
 
                 jasmine.waitUntil(function() {
                     return $('section#membership').find('.enrollment-button').is(':visible');
