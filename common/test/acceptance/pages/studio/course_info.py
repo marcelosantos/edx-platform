@@ -38,6 +38,7 @@ class CourseUpdatesPage(CoursePage):
         Clicks the new-update button.
         """
         self.wait_for_element_visibility('.course-handouts .edit-button', 'Waiting for edit button to be loaded')
+        self.wait_for_element_visibility('.course-handouts .title', 'Waiting for Course Handouts title to be loaded')
         click_css(self, '.new-update-button', require_notification=False)
         self.wait_for_element_visibility('.CodeMirror', 'Waiting for .CodeMirror')
 

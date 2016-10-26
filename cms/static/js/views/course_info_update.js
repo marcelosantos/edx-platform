@@ -24,7 +24,6 @@ define(['js/views/validation', 'codemirror', 'js/models/course_update',
             },
 
             render: function() {
-                debugger;
             // iterate over updates and create views for each using the template
                 var updateEle = this.$el.find('#course-update-list');
             // remove and then add all children
@@ -43,7 +42,7 @@ define(['js/views/validation', 'codemirror', 'js/models/course_update',
                     // ignore
                     }
                 });
-
+                this.$el.find('.new-update-form').hide();
                 return this;
             },
 
@@ -93,7 +92,6 @@ define(['js/views/validation', 'codemirror', 'js/models/course_update',
             },
 
             onNew: function(event) {
-                debugger;
                 event.preventDefault();
                 var self = this;
             // create new obj, insert into collection, and render this one ele overriding the hidden attr
