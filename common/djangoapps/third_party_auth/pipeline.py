@@ -202,6 +202,19 @@ def get(request):
     return request.session.get('partial_pipeline')
 
 
+def active_provider_enforces_data_sharing(request):
+    """
+    Determine two things - first, whether there's an active third-party
+    identity provider currently running, and second, if that active provider
+    requires data sharing consent in order to proceed.
+    """
+    running_pipeline = get(request)
+    if running_pipeline:
+        current_provider = provider.Registry.get_from_pipeline(running_pipeline)
+        return current_provider and current_provider.enforce_data_sharing_consent
+    return False
+
+
 def active_provider_requires_data_sharing(request):
     """
     Determine two things - first, whether there's an active third-party
@@ -708,7 +721,7 @@ def verify_data_sharing_consent(social, backend, **kwargs):
         return redirect(reverse('grant_data_sharing_permissions'))
 
     current_provider = provider.Registry.get_from_pipeline({'backend': backend.name, 'kwargs': kwargs})
-    if not current_provider.require_data_sharing_consent:
+    if not current_provider.enforce_data_sharing_consent:
         return
     try:
         consent = social.data_sharing_consent_audit

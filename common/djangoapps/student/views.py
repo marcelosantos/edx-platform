@@ -1630,7 +1630,7 @@ def create_account_with_params(request, params):
 
     if pipeline.active_provider_requests_data_sharing(request):
         extra_fields['data_sharing_consent'] = 'optional'
-    if pipeline.active_provider_requires_data_sharing(request):
+    if pipeline.active_provider_enforces_data_sharing(request):
         extra_fields['data_sharing_consent'] = 'required'
 
     # if doing signup for an external authorization, then get email, password, name from the eamap

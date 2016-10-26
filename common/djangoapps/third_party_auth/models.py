@@ -282,10 +282,13 @@ class ProviderConfig(ConfigurationModel):
     DATA_CONSENT_DISABLED = 'disabled'
     DATA_CONSENT_OPTIONAL = 'optional'
     DATA_CONSENT_REQUIRED = 'required'
+    DATA_CONSENT_ENFORCED = 'enforced'
+
     DATA_CONSENT_STATE_CHOICES = (
         (DATA_CONSENT_DISABLED, 'Disabled'),
         (DATA_CONSENT_OPTIONAL, 'Optional'),
-        (DATA_CONSENT_REQUIRED, 'Required')
+        (DATA_CONSENT_REQUIRED, 'Required'),
+        (DATA_CONSENT_ENFORCED, 'Enforced'),
     )
     data_sharing_consent = models.CharField(
         max_length=8,
@@ -293,8 +296,8 @@ class ProviderConfig(ConfigurationModel):
         choices=DATA_CONSENT_STATE_CHOICES,
         default=DATA_CONSENT_DISABLED,
         help_text=_(
-            "This field is used to determine whether data sharing consent is requested "
-            "or required of users signing in using this SSO provider. If disabled, consent "
+            "This field is used to determine whether data sharing consent is requested, "
+            "required or enforced of users signing in using this SSO provider. If disabled, consent "
             "will not be requested, and course data will not be shared."
         )
     )
@@ -313,6 +316,13 @@ class ProviderConfig(ConfigurationModel):
         super(ProviderConfig, self).clean()
         if bool(self.icon_class) == bool(self.icon_image):
             raise ValidationError('Either an icon class or an icon image must be given (but not both)')
+
+    @property
+    def enforce_data_sharing_consent(self):
+        """
+        Does the provider require data sharing consent?
+        """
+        return self.data_sharing_consent == self.DATA_CONSENT_ENFORCED
 
     @property
     def require_data_sharing_consent(self):

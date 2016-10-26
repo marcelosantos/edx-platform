@@ -38,7 +38,7 @@ class ResetSessionIfPipelineBrokenMiddleware(object):
         """
         view_module = view_func.__module__
 
-        if not pipeline.active_provider_requires_data_sharing(request):
+        if not pipeline.active_provider_enforces_data_sharing(request):
             return
 
         running_pipeline = pipeline.get(request)
