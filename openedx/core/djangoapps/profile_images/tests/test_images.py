@@ -24,6 +24,8 @@ from ..images import (
     validate_uploaded_image,
     _get_exif_orientation,
     _get_valid_file_types,
+    _update_exif_orientation
+
 )
 from .helpers import make_image_file, make_uploaded_file
 
@@ -141,7 +143,10 @@ class TestGenerateProfileImages(TestCase):
             self.assertIn('exif', image.info)
             self.assertEqual(_get_exif_orientation(image.info['exif']), expected_orientation)
         else:
-            self.assertIsNone(_get_exif_orientation(image.info.get('exif', piexif.dump({}))))
+            self.assertEqual(
+                _get_exif_orientation(image.info.get('exif', piexif.dump({}))),
+                {}
+            )
 
     @ddt.data(
         *product(
@@ -185,6 +190,18 @@ class TestGenerateProfileImages(TestCase):
         with make_image_file(extension='.jpg') as imfile:
             for _, image in self._create_mocked_profile_images(imfile, requested_images):
                 self.check_exif_orientation(image, None)
+
+    def test_update_exif_orientation_without_orientation(self):
+        """
+        Test the update_exif_orientation without orientation will not throw exception.
+        """
+        expected_result = 'Exif\x00\x00MM\x00*\x00\x00\x00\x08\x00\x01\x01\x12\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'  # pylint: disable=unused-import
+        requested_images = {10: "ten.jpg"}
+        with make_image_file(extension='.jpg') as imfile:
+            for _, image in self._create_mocked_profile_images(imfile, requested_images):
+                self.check_exif_orientation(image, None)
+                exif = image.info.get('exif', piexif.dump({}))
+                self.assertEqual(_update_exif_orientation(exif, None), expected_result)
 
     def _create_mocked_profile_images(self, image_file, requested_images):
         """

@@ -205,17 +205,18 @@ def _update_exif_orientation(exif, orientation):
     the exif orientation, return a new exif with the orientation set.
     """
     exif_dict = piexif.load(exif)
+    orientation = orientation or {}
     exif_dict['0th'][piexif.ImageIFD.Orientation] = orientation
     return piexif.dump(exif_dict)
 
 
 def _get_exif_orientation(exif):
     """
-    Return the orientation value for the given Image object, or None if the
+    Return the orientation value for the given Image object, or empty dict if the
     value is not set.
     """
     exif_dict = piexif.load(exif)
-    return exif_dict['0th'].get(piexif.ImageIFD.Orientation)
+    return exif_dict['0th'].get(piexif.ImageIFD.Orientation, {})
 
 
 def _get_valid_file_types():
