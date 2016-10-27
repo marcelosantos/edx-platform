@@ -38,6 +38,7 @@ from django.utils.translation import ugettext as _
                             type="checkbox"
                             name="data_sharing_consent"
                             class="input-block checkbox"
+                            data-consent="${data_sharing_consent}"
                         />
                         <label for="register-data_sharing_consent">
                             ${_("I agree to allow {platform_name} to share data about my enrollment, completion and performance in all {platform_name} courses and programs where my enrollment is sponsored by {provider}.*").format(provider=sso_provider, platform_name=platform_name)}

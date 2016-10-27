@@ -107,6 +107,7 @@ class GrantDataSharingPermissions(View):
             current_provider = Registry.get_from_pipeline(running_pipeline)
             if current_provider:
                 name = current_provider.name
+                data_sharing_consent = current_provider.data_sharing_consent
             else:
                 raise Http404
         else:
@@ -114,6 +115,7 @@ class GrantDataSharingPermissions(View):
         data = {
             'platform_name': configuration_helpers.get_value("PLATFORM_NAME", settings.PLATFORM_NAME),
             'sso_provider': name,
+            'data_sharing_consent': data_sharing_consent,
             'csrftoken': csrf(request)['csrf_token'],
         }
         return render_to_response('grant_data_sharing_permissions.html', data)
